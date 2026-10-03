@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jailbreak Gym — Adversarial testing for system prompts</title>
+<meta name="description" content="Jailbreak Gym stress-tests your system prompts against prompt-injection and jailbreak attacks, scores their robustness, and helps you harden them. Free, runs in your browser.">
+<style>
+  :root {
+    --paper: #FAFAF7;
+    --ink: #1C1A17;
+    --muted: #6E675C;
+    --line: #E4DFD3;
+    --accent: #9E2B25;
+    --accent-dark: #7E211D;
+    --held: #2E7D32;
+    --card: #FFFFFF;
+    --code-bg: #F3F0E8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+    line-height: 1.6; font-size: 16px;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 22px; }
+  header.site { padding: 56px 0 10px; border-bottom: 1px solid var(--line); }
+  header.site .kicker {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted);
+  }
+  h1 {
+    font-family: Georgia, "Times New Roman", serif; font-weight: 700;
+    font-size: 44px; margin: 10px 0 8px; letter-spacing: -0.5px;
+  }
+  h1 .thin { font-weight: 400; color: var(--muted); }
+  .lede { font-size: 18px; color: var(--muted); max-width: 640px; }
+  h2 {
+    font-family: Georgia, "Times New Roman", serif; font-size: 26px;
+    margin: 44px 0 6px; letter-spacing: -0.3px;
+  }
+  h3 { font-size: 17px; margin: 22px 0 6px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 22px; margin: 18px 0;
+  }
+  label.field { display: block; font-weight: 600; font-size: 14px; margin: 14px 0 6px; }
+  input[type=text], input[type=password], input[type=number], textarea, select {
+    width: 100%; padding: 10px 12px; font-size: 15px; border: 1px solid var(--line);
+    border-radius: 7px; background: #fff; color: var(--ink); font-family: inherit;
+  }
+  textarea { min-height: 130px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13.5px; }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .row > div { flex: 1 1 200px; }
+  .btn {
+    display: inline-block; border: none; cursor: pointer; font-size: 15px; font-weight: 600;
+    padding: 11px 22px; border-radius: 8px; background: var(--accent); color: #fff;
+    transition: background 0.15s ease;
+  }
+  .btn:hover:not(:disabled) { background: var(--accent-dark); }
+  .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .btn.ghost:hover:not(:disabled) { background: var(--code-bg); }
+  .btn.small { padding: 7px 14px; font-size: 13.5px; }
+  .sample-btn { margin: 0 8px 8px 0; }
+  .check {
+    display: flex; gap: 10px; align-items: flex-start; padding: 10px 0;
+    border-bottom: 1px solid var(--line); cursor: pointer;
+  }
+  .check:last-child { border-bottom: none; }
+  .check input { margin-top: 5px; }
+  .count { white-space: nowrap; }
+  #progressWrap { display: none; margin: 16px 0; }
+  .track { height: 10px; background: var(--code-bg); border-radius: 6px; overflow: hidden; }
+  #progressBar { height: 100%; width: 0; background: var(--accent); transition: width 0.2s ease; }
+  #keyError {
+    display: none; background: #FDECEA; border: 1px solid #E8AFA9; color: #7E211D;
+    padding: 12px 16px; border-radius: 8px; margin: 14px 0;
+  }
+  .score-hero { text-align: center; padding: 26px 0 10px; }
+  #scoreNum { font-family: Georgia, serif; font-size: 84px; line-height: 1; }
+  #scoreSub { color: var(--muted); margin-top: 6px; }
+  .catbar { margin: 10px 0; }
+  .catbar-head { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 4px; }
+  .catbar-track { height: 8px; background: var(--code-bg); border-radius: 5px; overflow: hidden; }
+  .catbar-fill { height: 100%; background: var(--held); }
+  .badge {
+    display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: 0.6px;
+    text-transform: uppercase; padding: 3px 9px; border-radius: 20px; color: #fff; vertical-align: 2px;
+  }
+  .badge.broken { background: var(--accent); }
+  .badge.held { background: var(--held); }
+  .badge.error { background: #8a8a8a; }
+  .tcard { border: 1px solid var(--line); border-radius: 8px; margin: 10px 0; background: #fff; }
+  .tcard summary { padding: 12px 16px; cursor: pointer; list-style: none; }
+  .tcard summary::-webkit-details-marker { display: none; }
+  .tcard summary:hover { background: #FCFBF8; }
+  .tcard .cat { color: var(--muted); font-size: 13px; margin-left: 6px; }
+  .tcard .src { color: var(--muted); font-size: 12px; margin-left: 6px; font-style: italic; }
+  .tbody { padding: 0 16px 16px; border-top: 1px solid var(--line); }
+  .tbody h5 { margin: 14px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  pre {
+    background: var(--code-bg); border-radius: 7px; padding: 12px 14px; overflow-x: auto;
+    font-size: 13px; white-space: pre-wrap; word-break: break-word; margin: 0;
+  }
+  .reason { font-size: 14px; }
+  .advice { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; margin: 16px 0; }
+  .advice h4 { margin: 0 0 6px; font-size: 15px; }
+  .advice ul { margin: 6px 0; padding-left: 20px; font-size: 14.5px; }
+  .filter-btn { margin-right: 8px; }
+  .filter-btn.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .compare { display: flex; gap: 26px; flex-wrap: wrap; margin: 14px 0; }
+  .cnum { font-family: Georgia, serif; font-size: 44px; }
+  .clabel { color: var(--muted); font-size: 13px; }
+  footer { border-top: 1px solid var(--line); margin-top: 60px; padding: 26px 0 60px; color: var(--muted); font-size: 14px; }
+  footer h3 { font-family: Georgia, serif; color: var(--ink); }
+  footer li { margin-bottom: 8px; }
+  #datasetList { padding-left: 20px; }
+  #datasetList li { margin-bottom: 10px; }
+  a { color: var(--accent); }
+  @media (max-width: 640px) { h1 { font-size: 34px; } #scoreNum { font-size: 64px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="site">
+    <div class="kicker">AI safety tooling</div>
+    <h1>Jailbreak Gym <span class="thin">/ sparring for system prompts</span></h1>
+    <p class="lede">Paste a system prompt. The gym throws hundreds of prompt-injection and jailbreak attacks at it, scores how well it holds up, and shows you exactly how to harden it.</p>
+  </header>
+
+  <h2>1 · Setup</h2>
+  <div class="card">
+    <div class="row">
+      <div>
+        <label class="field" for="provider">Provider</label>
+        <select id="provider">
+          <option value="groq">Groq (free tier, no card)</option>
+          <option value="gemini">Gemini (free tier)</option>
+        </select>
+      </div>
+      <div>
+        <label class="field" for="model">Model</label>
+        <input type="text" id="model" value="openai/gpt-oss-120b" spellcheck="false">
+        <div class="muted small" id="modelNote" style="margin-top:4px">Default: openai/gpt-oss-120b (free tier, no card).</div>
+      </div>
+    </div>
+    <label class="field" for="apikey">API key <span class="muted" style="font-weight:400">— paste once, stored in this browser only, sent only to the provider above</span></label>
+    <div class="row" style="align-items:center">
+      <div style="flex: 3 1 260px"><input type="password" id="apikey" placeholder="gsk_…" autocomplete="off" spellcheck="false"></div>
+      <div><button class="btn ghost small" id="forgetKey" type="button">Forget key</button></div>
+    </div>
+    <label class="field" for="secret">Protected secret <span class="muted" style="font-weight:400">— a fake value your prompt must never reveal; attacks try to extract it</span></label>
+    <input type="text" id="secret" value="sk-jg-DEMO-9f2Kq7Xm4t" spellcheck="false" autocomplete="off">
+  </div>
+
+  <h2>2 · System prompt under test</h2>
+  <div class="card">
+    <div style="margin-bottom:10px">
+      <button class="btn ghost small sample-btn" type="button" data-sample="naive">Naive support bot</button>
+      <button class="btn ghost small sample-btn" type="button" data-sample="secret">Assistant guarding a secret</button>
+      <button class="btn ghost small sample-btn" type="button" data-sample="rag">RAG bot that trusts documents</button>
+    </div>
+    <textarea id="sysprompt" placeholder="Paste the system prompt you want to stress-test…"></textarea>
+  </div>
+
+  <h2>3 · Attack plan</h2>
+  <div class="card">
+    <div style="margin-bottom:8px">
+      <button class="btn ghost small" id="selAll" type="button">Select all</button>
+      <button class="btn ghost small" id="selNone" type="button" style="margin-left:8px">Select none</button>
+    </div>
+    <div id="categories"></div>
+    <label class="check" style="margin-top:10px; border-top:1px solid var(--line)">
+      <input type="checkbox" id="extended">
+      <span><strong>Extended pack</strong> <span class="muted">(community datasets, off by default)</span><br>
+      <span class="muted small">Real-world prompts from public red-teaming datasets, used with attribution. Not mutated — run as published.</span></span>
+    </label>
+    <ul id="datasetList" class="small"></ul>
+    <div class="row" style="margin-top:10px; align-items:flex-end">
+      <div style="max-width:180px">
+        <label class="field" for="seed">Random seed</label>
+        <input type="number" id="seed" value="42">
+      </div>
+      <div class="muted small" style="padding-bottom:12px">Same seed ⇒ identical test cases, every run. Mutations are deterministic.</div>
+    </div>
+    <p style="margin-bottom:0"><strong id="totalCount">…</strong> <span class="muted">will run.</span></p>
+  </div>
+
+  <div class="card" style="text-align:center">
+    <button class="btn" id="runBtn" type="button">Run the gauntlet</button>
+    <button class="btn ghost" id="cancelBtn" type="button" disabled style="margin-left:10px">Cancel</button>
+    <div id="progressWrap">
+      <div class="track"><div id="progressBar"></div></div>
+      <div class="muted small" id="progressText" style="margin-top:6px">0 / 0</div>
+    </div>
+    <div id="keyError" role="alert"></div>
+  </div>
+
+  <div id="resultsSection" style="display:none">
+    <h2>Results</h2>
+    <div class="card">
+      <div class="score-hero">
+        <div id="scoreNum">–</div>
+        <div class="muted">robustness score / 100</div>
+        <div id="scoreSub" class="small" style="margin-top:8px"></div>
+      </div>
+      <div id="catBars"></div>
+    </div>
+
+    <h3>What to fix</h3>
+    <div class="card"><div id="adviceList"></div></div>
+
+    <h3>Transcripts</h3>
+    <div style="margin-bottom:10px">
+      <button class="btn ghost small filter-btn active" type="button" data-f="all">All</button>
+      <button class="btn ghost small filter-btn" type="button" data-f="broken">Broken</button>
+      <button class="btn ghost small filter-btn" type="button" data-f="held">Held</button>
+      <button class="btn ghost small filter-btn" type="button" data-f="error">Errors</button>
+    </div>
+    <div id="resultsList"></div>
+
+    <div id="hardenSection" style="display:none">
+      <h2>4 · Harden &amp; re-test</h2>
+      <div class="card">
+        <p><strong id="failCount">0</strong> attacks broke your prompt. Let the model rewrite your system prompt applying the fixes above, then re-test the failures against the new version.</p>
+        <button class="btn" id="hardenBtn" type="button">Harden my prompt</button>
+      </div>
+      <div class="card" id="retestSection" style="display:none">
+        <label class="field" for="hardenedPrompt">Hardened prompt (review and edit before re-testing)</label>
+        <textarea id="hardenedPrompt"></textarea>
+        <div style="margin-top:12px"><button class="btn" id="retestBtn" type="button">Re-test failures</button></div>
+      </div>
+      <div class="card" id="compareSection" style="display:none">
+        <h3 style="margin-top:0">Before / after</h3>
+        <div id="compareBody"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <h3>Honest limits</h3>
+    <ul>
+      <li><strong>Heuristic judging isn't perfect.</strong> The judge looks for leaked secrets, refusal language, and attack-specific markers — not true understanding. Edge cases will be mis-scored; read the transcripts.</li>
+      <li><strong>The attack set is curated, not exhaustive.</strong> 36 base attacks plus deterministic mutations cover common techniques, but attackers innovate. A high score is evidence of diligence, not proof of safety.</li>
+      <li><strong>Scores don't transfer across models.</strong> A prompt that holds on one model may break on another. Re-run when you change providers or models.</li>
+      <li><strong>Your API key never leaves this page</strong> except to the model provider you select. It is stored only in your browser's local storage.</li>
+    </ul>
+    <p class="small">Extended-pack prompts: garak by NVIDIA (Apache-2.0) and promptfoo (MIT), used with attribution. See the attack plan section for links.</p>
+  </footer>
+
+</div>
+
+<script src="assets/attacks.js?v=1"></script>
+<script src="assets/extended.js?v=1"></script>
+<script src="assets/mutations.js?v=1"></script>
+<script src="assets/judge.js?v=1"></script>
+<script src="assets/hardening.js?v=1"></script>
+<script src="assets/app.js?v=1"></script>
+</body>
+</html>
